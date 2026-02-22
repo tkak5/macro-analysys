@@ -1,0 +1,29 @@
+{
+  "name": "stock-analysis",
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+
+  "remoteUser": "vscode",
+
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    "ghcr.io/anthropics/devcontainer-features/claude-code": {}
+  },
+
+  "postCreateCommand": "pip install --upgrade pip && pip install marimo",
+
+  "forwardPorts": [2718],
+
+  "portsAttributes": {
+    "2718": {
+      "label": "marimo",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
