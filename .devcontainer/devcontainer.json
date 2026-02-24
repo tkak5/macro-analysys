@@ -1,5 +1,5 @@
 {
-  "name": "stock-analysis",
+  "name": "macro-analysys",
   "image": "mcr.microsoft.com/devcontainers/base:bookworm",
 
   "remoteUser": "vscode",
@@ -8,21 +8,18 @@
 
   "features": {
     "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.11"
-    },
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "lts"
+      "version": "3.13"
     },
     "ghcr.io/anthropics/devcontainer-features/claude-code": {}
   },
 
-  "postCreateCommand": "pip install --upgrade pip && pip install marimo",
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt",
 
-  "forwardPorts": [2718],
+  "forwardPorts": [8501],
 
   "portsAttributes": {
-    "2718": {
-      "label": "marimo",
+    "8501": {
+      "label": "streamlit",
       "onAutoForward": "openBrowser"
     }
   }

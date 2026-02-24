@@ -1,6 +1,45 @@
 {
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.e-stat.go.jp)",
+      "WebSearch",
+      "WebFetch(domain:www.stat-search.boj.or.jp)",
+      "WebFetch(domain:www5.cao.go.jp)",
+      "WebFetch(domain:data-seisaku.com)",
+      "WebFetch(domain:www.boj.or.jp)",
+      "WebFetch(domain:dateno.io)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_install",
+      "Bash(which pdftotext 2>/dev/null || apt list --installed 2>/dev/null | grep poppler; python3 -c \"import pdfplumber; print\\('pdfplumber available'\\)\" 2>/dev/null || python3 -c \"import PyPDF2; print\\('PyPDF2 available'\\)\" 2>/dev/null || python3 -c \"import fitz; print\\('fitz/pymupdf available'\\)\" 2>/dev/null)",
+      "Bash(pip install pdfplumber -q 2>&1 | tail -3)",
+      "Bash(python3 -c \"\nimport pdfplumber\nwith pdfplumber.open\\('/tmp/boj_api_manual.pdf'\\) as pdf:\n    for i, page in enumerate\\(pdf.pages[:10]\\):\n        text = page.extract_text\\(\\)\n        if text:\n            print\\(f'=== PAGE {i+1} ==='\\)\n            print\\(text[:3000]\\)\n            print\\(\\)\n\")",
+      "Bash(python3 -c \"\nimport pdfplumber\nwith pdfplumber.open\\('/tmp/boj_api_manual.pdf'\\) as pdf:\n    for i, page in enumerate\\(pdf.pages[10:20]\\):\n        text = page.extract_text\\(\\)\n        if text:\n            print\\(f'=== PAGE {i+11} ==='\\)\n            print\\(text[:3000]\\)\n            print\\(\\)\n\")",
+      "Bash(python3 -c \"\nimport pdfplumber\nwith pdfplumber.open\\('/tmp/boj_api_manual.pdf'\\) as pdf:\n    for i, page in enumerate\\(pdf.pages[20:]\\):\n        text = page.extract_text\\(\\)\n        if text:\n            print\\(f'=== PAGE {i+21} ==='\\)\n            print\\(text[:3000]\\)\n            print\\(\\)\n\")",
+      "Bash(curl -s -L \"https://www5.cao.go.jp/keizai3/getsurei/2532gap.xlsx\" -o /tmp/cao_gap.xlsx 2>&1 && ls -la /tmp/cao_gap.xlsx)",
+      "Bash(pip install openpyxl -q 2>&1 | tail -2 && python3 -c \"\nimport openpyxl\nwb = openpyxl.load_workbook\\('/tmp/cao_gap.xlsx'\\)\nprint\\('Sheets:', wb.sheetnames\\)\nfor sheet_name in wb.sheetnames:\n    ws = wb[sheet_name]\n    print\\(f'\\\\n=== Sheet: {sheet_name} ==='\\)\n    print\\(f'Dimensions: {ws.dimensions}'\\)\n    # Print first 20 rows\n    for row_idx, row in enumerate\\(ws.iter_rows\\(values_only=True\\)\\):\n        if row_idx >= 20:\n            break\n        print\\(row\\)\n\")",
+      "Bash(python -c \"\nimport ast, sys\nfiles = [\n    'collectors/base.py',\n    'collectors/estat_collector.py',\n    'collectors/boj_collector.py',\n    'collectors/cao_collector.py',\n]\nfor f in files:\n    try:\n        ast.parse\\(open\\(f\\).read\\(\\)\\)\n        print\\(f'OK: {f}'\\)\n    except SyntaxError as e:\n        print\\(f'NG: {f} - {e}'\\)\n        sys.exit\\(1\\)\n\")",
+      "Bash(ruff format . 2>&1)",
+      "Bash(pip install ruff mypy --quiet 2>&1 | tail -3)",
+      "Bash(ruff check . 2>&1)",
+      "Bash(pip install pandas-stubs types-requests --quiet 2>&1 | tail -3 && mypy . --ignore-missing-imports 2>&1)",
+      "Bash(mypy . --ignore-missing-imports 2>&1)",
+      "Bash(python -c \"\nimport requests\n# 内閣府のドメインが異なる可能性\nheaders = {'User-Agent': 'Mozilla/5.0'}\nresp = requests.get\\('https://www.cao.go.jp/keizai3/getsurei/getsurei.html', timeout=10, headers=headers\\)\nprint\\('cao.go.jp status:', resp.status_code\\)\nimport re\nif resp.status_code == 200:\n    links = re.findall\\(r'href=[\\\\\"\\\\']\\(.*?\\)[\\\\\"\\\\'i]', resp.text\\)\n    gap_links = [l for l in links if 'gap' in l.lower\\(\\) or 'xlsx' in l.lower\\(\\)]\n    print\\(gap_links[:10]\\)\n\")",
+      "Bash(python -c \"\nimport requests, re\nheaders = {'User-Agent': 'Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36'}\nresp = requests.get\\('https://www5.cao.go.jp/keizai3/getsurei/getsurei-index.html', timeout=15, headers=headers\\)\nprint\\('status:', resp.status_code\\)\nif resp.status_code == 200:\n    links = re.findall\\(r'href=[\\\\\"\\\\']\\(/[^\\\\\"\\\\']*?|https?://[^\\\\\"\\\\']*?\\)[\\\\\"\\\\'i]', resp.text\\)\n    gap = [l for l in links if 'gap' in l.lower\\(\\) or 'xlsx' in l.lower\\(\\) or 'xls' in l.lower\\(\\)]\n    print\\('xlsx/gap links:', gap[:20]\\)\n    # 全リンクの最初の20\n    print\\('all links[:20]:', links[:20]\\)\n\")",
+      "Bash(python -c \"\nimport requests, re\nheaders = {'User-Agent': 'Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36'}\n# 需給ギャップ専用ページ\nfor url in [\n    'https://www5.cao.go.jp/keizai3/getsurei/getsurei-index.html',\n    'https://www5.cao.go.jp/keizai3/shihyo/index.html',\n]:\n    resp = requests.get\\(url, timeout=15, headers=headers\\)\n    print\\(url, resp.status_code\\)\n    if resp.status_code == 200:\n        # 全 href を抜き出す\n        links = re.findall\\(r'href=[\\\\\"\\\\']\\(.*?\\)[\\\\\"\\\\'i]', resp.text\\)\n        for l in links:\n            if any\\(x in l.lower\\(\\) for x in ['gap', 'xls', 'xlsx', 'csv']\\):\n                print\\(' found:', l\\)\n\")",
+      "Bash(python -c \"\nimport requests\nheaders = {'User-Agent': 'Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36'}\nurl = 'https://www5.cao.go.jp/keizai3/getsurei/2532gap.xlsx'\nresp = requests.get\\(url, timeout=30, headers=headers\\)\nprint\\('status:', resp.status_code\\)\nprint\\('content-type:', resp.headers.get\\('content-type'\\)\\)\nprint\\('content-length:', len\\(resp.content\\)\\)\n\")",
+      "Bash(python -c \"\nimport requests, io, re\nimport pandas as pd\nheaders = {'User-Agent': 'Mozilla/5.0'}\n\n# ページからリンクを全取得してgapファイルのパターン確認\nresp = requests.get\\('https://www5.cao.go.jp/keizai3/getsurei/getsurei-index.html', timeout=15, headers=headers\\)\nlinks = re.findall\\(r'href=[\\\\\"\\\\']\\(.*?\\)[\\\\\"\\\\'i]', resp.text\\)\ngap_files = [l for l in links if 'gap.xlsx' in l.lower\\(\\)]\nprint\\('gap files on page:', gap_files\\)\n\n# ファイルの中身も確認\nurl = 'https://www5.cao.go.jp/keizai3/getsurei/2532gap.xlsx'\nr = requests.get\\(url, timeout=30, headers=headers\\)\nxls = pd.ExcelFile\\(io.BytesIO\\(r.content\\)\\)\nprint\\('sheet names:', xls.sheet_names\\)\n\")",
+      "Bash(python -c \"\nimport requests, re\nheaders = {'User-Agent': 'Mozilla/5.0'}\nresp = requests.get\\('https://www5.cao.go.jp/keizai3/getsurei/getsurei-index.html', timeout=15, headers=headers\\)\n# 全リンク抽出（gap含む行のコンテキストも）\nall_links = re.findall\\(r'href=[\\\\\"\\\\']\\(.*?\\)[\\\\\"\\\\'i]', resp.text\\)\nprint\\('All links:'\\)\nfor l in all_links:\n    if l.strip\\(\\):\n        print\\(' ', l\\)\n\")",
+      "Bash(set -a && source .env && set +a && python pipeline.py 2>&1)",
+      "Bash(ruff check . 2>&1 && echo \"OK\")",
+      "Bash(set -a && source .env && set +a && rm -f data/macro.db && python pipeline.py 2>&1)",
+      "Bash(set -a && source .env && set +a && python -c \"\nimport os, requests\nkey = os.environ['ESTAT_API_KEY']\n# CPI APIの生レスポンスを確認\nparams = {\n    'appId': key,\n    'statsDataId': '0003427113',\n    'cdArea': '00000',\n    'lang': 'J',\n    'limit': '5',\n}\nresp = requests.get\\('https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData', params=params, timeout=30\\)\nprint\\('Status:', resp.status_code\\)\nimport json\nbody = resp.json\\(\\)\nresult = body['GET_STATS_DATA']['RESULT']\nprint\\('STATUS:', result['STATUS']\\)\nif result['STATUS'] != 0:\n    print\\('ERROR_MSG:', result.get\\('ERROR_MSG'\\)\\)\nelse:\n    stat_data = body['GET_STATS_DATA']['STATISTICAL_DATA']\n    values = stat_data['DATA_INF']['VALUE']\n    print\\('総レコード数:', len\\(values\\)\\)\n    print\\('最初のレコード:', values[0] if values else 'なし'\\)\n    # CLASS_INF確認\n    for class_obj in stat_data['CLASS_INF']['CLASS_OBJ']:\n        print\\('次元:', class_obj[\\\\\"@id\\\\\"], '-> サンプル:', list\\({c[\\\\\"@code\\\\\"]: c[\\\\\"@name\\\\\"] for c in \\(class_obj[\\\\\"CLASS\\\\\"] if isinstance\\(class_obj[\\\\\"CLASS\\\\\"], list\\) else [class_obj[\\\\\"CLASS\\\\\"]]\\)}.items\\(\\)\\)[:3]\\)\n\")",
+      "Bash(set -a && source .env && set +a && python -c \"\nimport os, requests\nkey = os.environ['ESTAT_API_KEY']\nparams = {\n    'appId': key,\n    'statsDataId': '0003109750',\n    'lang': 'J',\n    'limit': '5',\n}\nresp = requests.get\\('https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData', params=params, timeout=30\\)\nbody = resp.json\\(\\)\nstat_data = body['GET_STATS_DATA']['STATISTICAL_DATA']\nvalues = stat_data['DATA_INF']['VALUE']\nprint\\('最初のレコード:', values[0]\\)\nfor class_obj in stat_data['CLASS_INF']['CLASS_OBJ']:\n    obj_id = class_obj['@id']\n    classes = class_obj['CLASS']\n    if isinstance\\(classes, dict\\): classes = [classes]\n    sample = {c['@code']: c['@name'] for c in classes}\n    items = list\\(sample.items\\(\\)\\)\n    print\\(f'次元 {obj_id} -> 最初の3件: {items[:3]}'\\)\n\" 2>&1)",
+      "Bash(curl -s http://localhost:8501/healthz 2>&1)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "playwright"
-  ],
-  "enableAllProjectMcpServers": true
+    "playwright",
+    "context7"
+  ]
 }
