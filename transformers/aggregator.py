@@ -52,13 +52,12 @@ class Aggregator(BaseTransformer):
     # ------------------------------------------------------------------
 
     def _build_cpi(self) -> pd.DataFrame:
-        """raw_cpi → mart_indicators 形式に変換する."""
+        """raw_cpi → mart_indicators 形式に変換する（総合 + 品目別）."""
         try:
             df = self.conn.execute("""
-                SELECT date, value, unit
+                SELECT date, category, value, unit
                 FROM raw_cpi
-                WHERE category = '総合'
-                ORDER BY date
+                ORDER BY category, date
             """).df()
         except Exception:
             logger.warning("CPI: raw テーブルが空またはエラー")
@@ -67,17 +66,22 @@ class Aggregator(BaseTransformer):
         if df.empty:
             return pd.DataFrame()
 
-        return pd.DataFrame(
-            {
-                "date": df["date"],
-                "indicator_code": "CPI",
-                "frequency": "monthly",
-                "value": df["value"],
-                "yoy_change": None,
-                "mom_change": None,
-                "unit": df["unit"],
-            }
-        )
+        rows = []
+        for category, group in df.groupby("category"):
+            code = "CPI" if category == "総合" else f"CPI_{category}"
+            for _, row in group.iterrows():
+                rows.append(
+                    {
+                        "date": row["date"],
+                        "indicator_code": code,
+                        "frequency": "monthly",
+                        "value": row["value"],
+                        "yoy_change": None,
+                        "mom_change": None,
+                        "unit": row["unit"],
+                    }
+                )
+        return pd.DataFrame(rows)
 
     def _build_gdp(self) -> pd.DataFrame:
         """raw_gdp → mart_indicators 形式に変換する."""

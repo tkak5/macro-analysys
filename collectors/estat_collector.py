@@ -56,38 +56,61 @@ class EStatCollector(BaseCollector):
             upsert_raw(self.conn, "raw_cpi", df, pk=["date", "category"])
 
     def _fetch_cpi(self, since: date | None = None) -> pd.DataFrame:
-        """CPI 総合指数（全国）を取得する."""
-        params: dict[str, str] = {
+        """CPI 品目別指数（全国・11カテゴリ）を取得する.
+
+        e-Stat はデフォルト 100,000 件上限のため、対象カテゴリを cdCat01 で絞り込む。
+        ステップ1: limit=1 でメタデータ（CLASS_INF）を取得しカテゴリコードを特定
+        ステップ2: cdCat01 で絞り込んだデータを取得
+        """
+        base_params: dict[str, str] = {
             "appId": self.api_key,
             "statsDataId": STATS_ID_CPI,
             "cdArea": "00000",  # 全国
             "lang": "J",
         }
-        if since:
-            params["cdTimeFrom"] = since.strftime("%Y%m")
 
-        values, class_info = self._request(params)
-        if not values:
-            return pd.DataFrame()
+        # ステップ1: メタデータ取得（時間フィルタなし・limit=1）
+        class_info = self._get_class_info({**base_params, "limit": "1"})
 
-        # 「指数」かつ「総合」のみ抽出
+        # 「指数」（前年比除く）の表章項目コードを抽出
         tab_codes = {
             code
             for code, name in class_info.get("tab", {}).items()
             if "指数" in name and "前年" not in name
         }
-        # 名称が「総合」を含み、かつ詳細カテゴリでない最上位項目を選択
-        cat_codes = {
-            code
-            for code, name in class_info.get("cat01", {}).items()
-            if "総合" in name and "食料" not in name and "住居" not in name
+        # 取得対象カテゴリ（完全一致）
+        # e-Stat の名称は "0001 総合" 形式のためスペース以降を取り出して照合
+        target_categories = {
+            "総合", "食料", "住居", "光熱・水道", "家具・家事用品",
+            "被服及び履物", "保健医療", "交通・通信", "教育", "教養娯楽", "諸雑費",
         }
+        cat_code_to_name = {
+            code: full_name.split(" ", 1)[-1]
+            for code, full_name in class_info.get("cat01", {}).items()
+            if full_name.split(" ", 1)[-1] in target_categories
+        }
+        if not cat_code_to_name:
+            logger.warning("CPI: 対象カテゴリコードが見つかりません")
+            return pd.DataFrame()
+
+        # ステップ2: 対象カテゴリコードを cdCat01 で絞り込んでデータ取得
+        data_params: dict[str, str] = {
+            **base_params,
+            "cdCat01": ",".join(cat_code_to_name.keys()),
+        }
+        if since:
+            data_params["cdTimeFrom"] = since.strftime("%Y%m")
+
+        values, _ = self._request(data_params)
+        if not values:
+            return pd.DataFrame()
 
         rows = []
         for v in values:
             if v.get("@tab") not in tab_codes:
                 continue
-            if v.get("@cat01") not in cat_codes:
+            cat_code = v.get("@cat01")
+            if cat_code not in cat_code_to_name:
                 continue
             val_str = v.get("$", "")
             if val_str in ("", "-", "***", "…", "..."):
@@ -95,7 +118,7 @@ class EStatCollector(BaseCollector):
             rows.append(
                 {
                     "date": _parse_monthly_time(v["@time"]),
-                    "category": "総合",
+                    "category": cat_code_to_name[cat_code],
                     "value": float(val_str),
                     "unit": "指数（2020年=100）",
                     "fetched_at": datetime.now(),
@@ -235,6 +258,24 @@ class EStatCollector(BaseCollector):
     # ------------------------------------------------------------------
     # 共通
     # ------------------------------------------------------------------
+
+    def _get_class_info(self, params: dict[str, str]) -> dict[str, dict[str, str]]:
+        """e-Stat API から CLASS_INF（メタデータ）のみ取得する.
+
+        STATUS=1（データなし）でも CLASS_INF は返るため、独立したメソッドとして分離。
+        """
+        resp = requests.get(BASE_URL, params=params, timeout=30)
+        resp.raise_for_status()
+        body = resp.json()
+        stat_data = body["GET_STATS_DATA"]["STATISTICAL_DATA"]
+        class_info: dict[str, dict[str, str]] = {}
+        for class_obj in stat_data["CLASS_INF"]["CLASS_OBJ"]:
+            obj_id: str = class_obj["@id"]
+            classes = class_obj["CLASS"]
+            if isinstance(classes, dict):
+                classes = [classes]
+            class_info[obj_id] = {c["@code"]: c["@name"] for c in classes}
+        return class_info
 
     def _request(
         self, params: dict[str, str]

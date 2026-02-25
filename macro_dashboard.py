@@ -24,6 +24,13 @@ INDICATOR_LABELS: dict[str, str] = {
     "LONG_RATE": "長期金利（10年国債）",
 }
 
+# CPI 品目別の indicator_code リスト
+CPI_CATEGORY_CODES = [
+    "CPI_食料", "CPI_住居", "CPI_光熱・水道", "CPI_家具・家事用品",
+    "CPI_被服及び履物", "CPI_保健医療", "CPI_交通・通信",
+    "CPI_教育", "CPI_教養娯楽", "CPI_諸雑費",
+]
+
 # 2列グリッドで表示する指標（ORDER を保証）
 GRID_INDICATORS = [
     "CPI", "GDP", "UNEMPLOYMENT", "M2", "POLICY_RATE", "USDJPY",
@@ -101,6 +108,42 @@ def render_chart(df: pd.DataFrame, code: str, year_range: tuple[int, int]) -> No
     )
 
 
+def render_cpi_breakdown(df: pd.DataFrame, year_range: tuple[int, int]) -> None:
+    """CPI 品目別前年同月比の横棒グラフを描画する."""
+    breakdown_df = df[
+        df["indicator_code"].isin(CPI_CATEGORY_CODES)
+        & (df["date"].dt.year >= year_range[0])
+        & (df["date"].dt.year <= year_range[1])
+    ].copy()
+
+    if breakdown_df.empty:
+        return
+
+    latest_date = breakdown_df["date"].max()
+    latest_df = breakdown_df[breakdown_df["date"] == latest_date].dropna(subset=["yoy_change"]).copy()
+
+    if latest_df.empty:
+        return
+
+    latest_df["label"] = latest_df["indicator_code"].str.replace("CPI_", "", regex=False)
+    latest_df = latest_df.sort_values("yoy_change", ascending=True)
+    latest_df["方向"] = latest_df["yoy_change"].apply(lambda x: "上昇" if x >= 0 else "下落")
+
+    fig = px.bar(
+        latest_df,
+        x="yoy_change",
+        y="label",
+        orientation="h",
+        color="方向",
+        color_discrete_map={"上昇": "#e74c3c", "下落": "#3498db"},
+        labels={"yoy_change": "前年同月比（%）", "label": ""},
+        title=f"品目別 前年同月比（{latest_date.strftime('%Y年%m月')}）",
+    )
+    fig.add_vline(x=0, line_width=1, line_color="gray")
+    fig.update_layout(showlegend=True, margin={"t": 40, "b": 10})
+    st.plotly_chart(fig, use_container_width=True)
+
+
 def main() -> None:
     """ダッシュボードのエントリーポイント."""
     st.set_page_config(
@@ -155,6 +198,8 @@ def main() -> None:
         for j, code in enumerate(grid_codes[i : i + 2]):
             with cols[j]:
                 render_chart(df, code, year_range)
+                if code == "CPI":
+                    render_cpi_breakdown(df, year_range)
 
     # ------------------------------------------------------------------
     # 全幅: 需給ギャップ
