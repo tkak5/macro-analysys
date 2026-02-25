@@ -26,6 +26,7 @@ EXCHANGE_DB = "FM08"
 EXCHANGE_CODE = "FXERM07"  # 米ドル/円 月中平均
 
 
+
 class BojCollector(BaseCollector):
     """日本銀行 API から M2・政策金利・為替レートを収集するコレクター."""
 

@@ -6,6 +6,10 @@ import logging
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def setup_logging() -> None:
     """ログ設定: logs/pipeline.log + stdout に出力する."""
@@ -38,11 +42,13 @@ def main() -> None:
     from collectors.boj_collector import BojCollector
     from collectors.cao_collector import CaoCollector
     from collectors.estat_collector import EStatCollector
+    from collectors.mof_collector import MofCollector
 
     collectors = [
         EStatCollector(conn),
         BojCollector(conn),
         CaoCollector(conn),
+        MofCollector(conn),
     ]
 
     for collector in collectors:

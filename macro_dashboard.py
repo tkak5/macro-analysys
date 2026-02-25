@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from db.client import get_connection
@@ -20,10 +21,14 @@ INDICATOR_LABELS: dict[str, str] = {
     "POLICY_RATE": "政策金利",
     "USDJPY": "円ドル為替レート（USD/JPY）",
     "OUTPUT_GAP": "需給ギャップ",
+    "LONG_RATE": "長期金利（10年国債）",
 }
 
 # 2列グリッドで表示する指標（ORDER を保証）
-GRID_INDICATORS = ["CPI", "GDP", "UNEMPLOYMENT", "M2", "POLICY_RATE", "USDJPY"]
+GRID_INDICATORS = [
+    "CPI", "GDP", "UNEMPLOYMENT", "M2", "POLICY_RATE", "USDJPY",
+    "LONG_RATE",
+]
 
 # 全幅で表示する指標
 FULL_WIDTH_INDICATORS = ["OUTPUT_GAP"]
@@ -71,10 +76,14 @@ def render_chart(df: pd.DataFrame, code: str, year_range: tuple[int, int]) -> No
     unit = indicator_df["unit"].iloc[0] if not indicator_df.empty else ""
     st.caption(f"単位: {unit}")
 
-    chart_df = indicator_df.set_index("date")[["value"]].rename(
-        columns={"value": label}
+    fig = px.line(
+        indicator_df,
+        x="date",
+        y="value",
+        labels={"date": "", "value": unit},
     )
-    st.line_chart(chart_df)
+    fig.update_layout(margin={"t": 10, "b": 10})
+    st.plotly_chart(fig, use_container_width=True)
 
     # 直近値・前年同月比・前期比をメトリクスで表示
     latest = indicator_df.iloc[-1]

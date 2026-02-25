@@ -31,6 +31,7 @@ class Aggregator(BaseTransformer):
             self._build_policy_rate(),
             self._build_exchange_rate(),
             self._build_output_gap(),
+            self._build_long_rate(),
         ]
 
         non_empty = [f for f in frames if not f.empty]
@@ -206,6 +207,33 @@ class Aggregator(BaseTransformer):
             {
                 "date": df["date"],
                 "indicator_code": "USDJPY",
+                "frequency": "monthly",
+                "value": df["value"],
+                "yoy_change": None,
+                "mom_change": None,
+                "unit": df["unit"],
+            }
+        )
+
+    def _build_long_rate(self) -> pd.DataFrame:
+        """raw_long_rate → mart_indicators 形式に変換する."""
+        try:
+            df = self.conn.execute("""
+                SELECT date, value, unit
+                FROM raw_long_rate
+                ORDER BY date
+            """).df()
+        except Exception:
+            logger.warning("長期金利: raw テーブルが空またはエラー")
+            return pd.DataFrame()
+
+        if df.empty:
+            return pd.DataFrame()
+
+        return pd.DataFrame(
+            {
+                "date": df["date"],
+                "indicator_code": "LONG_RATE",
                 "frequency": "monthly",
                 "value": df["value"],
                 "yoy_change": None,

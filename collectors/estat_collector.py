@@ -231,6 +231,7 @@ class EStatCollector(BaseCollector):
         logger.info("失業率: %d 件取得", len(df))
         return df
 
+
     # ------------------------------------------------------------------
     # 共通
     # ------------------------------------------------------------------
@@ -244,6 +245,10 @@ class EStatCollector(BaseCollector):
         body = resp.json()
 
         result = body["GET_STATS_DATA"]["RESULT"]
+        if result["STATUS"] == 1:
+            # STATUS=1: 正常終了だが該当データなし（差分更新で新データなし時に発生）
+            logger.info("e-Stat API: 該当データなし（STATUS=1）")
+            return [], {}
         if result["STATUS"] != 0:
             raise RuntimeError(f"e-Stat API エラー: {result['ERROR_MSG']}")
 

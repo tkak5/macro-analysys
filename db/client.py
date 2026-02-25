@@ -90,6 +90,16 @@ def initialize_tables(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS raw_long_rate (
+            date        DATE      NOT NULL PRIMARY KEY,
+            value       DOUBLE,
+            unit        VARCHAR,
+            fetched_at  TIMESTAMP NOT NULL DEFAULT current_timestamp
+        )
+    """)
+
+
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS indicator_master (
             indicator_code    VARCHAR NOT NULL PRIMARY KEY,
             indicator_name    VARCHAR,
@@ -176,6 +186,14 @@ def _seed_indicator_master(conn: duckdb.DuckDBPyConnection) -> None:
             "経済",
             "CAO",
             "内閣府 需給ギャップ・潜在成長率",
+        ),
+        (
+            "LONG_RATE",
+            "長期金利（10年国債）",
+            "Long-term Interest Rate",
+            "金融",
+            "BOJ",
+            "日本銀行 新発10年国債利回り月中平均",
         ),
     ]
     for row in masters:
