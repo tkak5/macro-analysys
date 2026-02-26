@@ -6,6 +6,7 @@ import logging
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from db.client import get_connection
@@ -108,6 +109,147 @@ def render_chart(df: pd.DataFrame, code: str, year_range: tuple[int, int]) -> No
     )
 
 
+def render_output_gap_chart(df: pd.DataFrame, year_range: tuple[int, int]) -> None:
+    """需給ギャップ専用グラフを描画する（0を境に正負で色分け）."""
+    indicator_df = df[
+        (df["indicator_code"] == "OUTPUT_GAP")
+        & (df["date"].dt.year >= year_range[0])
+        & (df["date"].dt.year <= year_range[1])
+    ].copy()
+
+    st.subheader("需給ギャップ")
+
+    if indicator_df.empty:
+        st.info("データがありません")
+        return
+
+    unit = indicator_df["unit"].iloc[0]
+    st.caption(f"単位: {unit}")
+
+    colors = indicator_df["value"].apply(
+        lambda x: "#e74c3c" if x >= 0 else "#3498db"
+    )
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=indicator_df["date"],
+        y=indicator_df["value"],
+        marker_color=colors,
+        hovertemplate="%{x|%Y年%m月}<br>需給ギャップ: %{y:.2f}%<extra></extra>",
+    ))
+    fig.add_hline(y=0, line_width=1.5, line_color="gray")
+
+    y_max = float(indicator_df["value"].max())
+    y_min = float(indicator_df["value"].min())
+
+    fig.add_annotation(
+        xref="paper", yref="y",
+        x=0.01, y=y_max * 0.85 if y_max > 0 else 0.3,
+        text="▲ 需要超過（インフレ圧力）",
+        showarrow=False,
+        font={"color": "#e74c3c", "size": 12},
+        xanchor="left",
+    )
+    fig.add_annotation(
+        xref="paper", yref="y",
+        x=0.01, y=y_min * 0.85 if y_min < 0 else -0.3,
+        text="▼ 供給超過（デフレ圧力）",
+        showarrow=False,
+        font={"color": "#3498db", "size": 12},
+        xanchor="left",
+    )
+
+    fig.update_layout(
+        margin={"t": 10, "b": 10},
+        yaxis_title=unit,
+        showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    latest = indicator_df.iloc[-1]
+    col1, col2, col3 = st.columns(3)
+    col1.metric(
+        "直近値", f"{latest['value']:.2f}" if pd.notna(latest["value"]) else "N/A"
+    )
+    col2.metric(
+        "前年同期比",
+        f"{latest['yoy_change']:.2f}%" if pd.notna(latest["yoy_change"]) else "N/A",
+    )
+    col3.metric(
+        "前期比",
+        f"{latest['mom_change']:.2f}%" if pd.notna(latest["mom_change"]) else "N/A",
+    )
+
+
+def render_cpi_multi_line(df: pd.DataFrame, year_range: tuple[int, int]) -> None:
+    """CPI 品目別の指数推移を1グラフに重ねて表示する."""
+    category_df = df[
+        df["indicator_code"].isin(CPI_CATEGORY_CODES)
+        & (df["date"].dt.year >= year_range[0])
+        & (df["date"].dt.year <= year_range[1])
+    ].copy()
+
+    st.subheader("消費者物価指数（CPI）- 品目別推移")
+
+    if category_df.empty:
+        st.info("データがありません")
+        return
+
+    unit = category_df["unit"].iloc[0]
+    st.caption(f"単位: {unit}")
+
+    category_df["品目"] = category_df["indicator_code"].str.replace("CPI_", "", regex=False)
+
+    fig = px.line(
+        category_df,
+        x="date",
+        y="value",
+        color="品目",
+        labels={"date": "", "value": unit, "品目": "品目"},
+    )
+    # 品目別の線を細くして背景に退かせる
+    fig.update_traces(line_width=1, opacity=0.5)
+
+    # 総合 CPI を太い黒線で重ねて強調
+    total_df = df[
+        (df["indicator_code"] == "CPI")
+        & (df["date"].dt.year >= year_range[0])
+        & (df["date"].dt.year <= year_range[1])
+    ]
+    if not total_df.empty:
+        fig.add_trace(go.Scatter(
+            x=total_df["date"],
+            y=total_df["value"],
+            mode="lines",
+            name="総合",
+            line={"color": "black", "width": 3},
+        ))
+
+    fig.update_layout(margin={"t": 10, "b": 10})
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 直近値メトリクスは総合 CPI を参照
+    cpi_df = df[
+        (df["indicator_code"] == "CPI")
+        & (df["date"].dt.year >= year_range[0])
+        & (df["date"].dt.year <= year_range[1])
+    ]
+    if not cpi_df.empty:
+        latest = cpi_df.iloc[-1]
+        col1, col2, col3 = st.columns(3)
+        col1.metric(
+            "総合 直近値", f"{latest['value']:.2f}" if pd.notna(latest["value"]) else "N/A"
+        )
+        col2.metric(
+            "前年同月比",
+            f"{latest['yoy_change']:.2f}%" if pd.notna(latest["yoy_change"]) else "N/A",
+        )
+        col3.metric(
+            "前月比",
+            f"{latest['mom_change']:.2f}%" if pd.notna(latest["mom_change"]) else "N/A",
+        )
+
+
 def render_cpi_breakdown(df: pd.DataFrame, year_range: tuple[int, int]) -> None:
     """CPI 品目別前年同月比の横棒グラフを描画する."""
     breakdown_df = df[
@@ -197,17 +339,18 @@ def main() -> None:
         cols = st.columns(2)
         for j, code in enumerate(grid_codes[i : i + 2]):
             with cols[j]:
-                render_chart(df, code, year_range)
                 if code == "CPI":
+                    render_cpi_multi_line(df, year_range)
                     render_cpi_breakdown(df, year_range)
+                else:
+                    render_chart(df, code, year_range)
 
     # ------------------------------------------------------------------
     # 全幅: 需給ギャップ
     # ------------------------------------------------------------------
     st.divider()
-    for code in FULL_WIDTH_INDICATORS:
-        if code in codes_in_data:
-            render_chart(df, code, year_range)
+    if "OUTPUT_GAP" in codes_in_data:
+        render_output_gap_chart(df, year_range)
 
 
 if __name__ == "__main__":
